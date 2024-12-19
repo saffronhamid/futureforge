@@ -34,7 +34,7 @@ function PreLoader({ loadingState, errorState }) {
           {/* heading */}
           <h4
             className={clsx(
-              "tw-font-heading tw-font-medium",
+              "tw-font-heading ",
               "tw-text-[green]",
               "tw-text-4xl tw-leading-9 tw-mb-4",
             )}
