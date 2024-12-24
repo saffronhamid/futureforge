@@ -17,31 +17,30 @@ const Header = dynamic(() => import("../../components/layout/Header"));
 function Login() {
   const router = useRouter();
   const [error, setError] = useState("");
-  const [entityType, setEntityType] = useState("user");
-  const [loader, setLoader] = useState(false);
-  const [formData, setFormData] = useState({ email: "", password: "" });
-  const [toastDisplayed, setToastDisplayed] = useState(false);
-  const { isMentorLoggedIn, isUserLoggedIn } = useAuth();
+  const [entityType, setEntityType] = useState("user"); // Tracks user or mentor login
+  const [loader, setLoader] = useState(false); // Shows loading spinner during API calls
+  const [formData, setFormData] = useState({ email: "", password: "" }); // Holds email and password input
+  const [toastDisplayed, setToastDisplayed] = useState(false); // Prevents multiple toasts
+  const { isMentorLoggedIn, isUserLoggedIn } = useAuth(); // Authentication context
 
+  // Update formData state when inputs change
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  // Sync entityType with the URL query params
   useEffect(() => {
     const updateEntityTypeInUrl = (newEntityType) => {
       const queryParams = new URLSearchParams(window.location.search);
       queryParams.set("entityType", newEntityType);
       const queryString = queryParams.toString();
-      window.history.replaceState(
-        null,
-        "",
-        `${router.pathname}?${queryString}`,
-      );
+      window.history.replaceState(null, "", `${router.pathname}?${queryString}`);
     };
 
     updateEntityTypeInUrl(entityType);
   }, [entityType]);
 
+  // Check for logged-in state or errors on page load
   useEffect(() => {
     const { redirectURL, entityType: entityTypeFromUrl, error } = router.query;
 
@@ -60,9 +59,12 @@ function Login() {
     }
   }, [isUserLoggedIn, isMentorLoggedIn, router, toastDisplayed]);
 
+  // Handle form submission for login
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+
+    // Validate input fields
     if (!formData.email || !formData.password) {
       setError("Please fill all the fields");
       setTimeout(() => {
@@ -70,40 +72,53 @@ function Login() {
       }, 5000);
       return;
     }
+
     try {
       setLoader(true);
-      const url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/login?entityType=${entityType}`;
+
+      // API URL for login
+      const url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/login`;
+
+      // Send POST request to backend
       const response = await axios.post(url, formData, {
-        withCredentials: true,
         headers: {
           "Content-Type": "application/json",
         },
       });
+
       setLoader(false);
-      if (response.data.redirectURL) {
-        window.location.href = response.data.redirectURL;
+
+      // Save token in localStorage and redirect if successful
+      if (response.data.token) {
+        localStorage.setItem("authToken", response.data.token);
+        router.push("/"); // Redirect to home page
       }
     } catch (error) {
       setLoader(false);
-      // const errorMessage =
-      //   errorCodes[error.response.data.error] ||
-      //   "Login failed. Please try again.";
-      const errorMessage =
-        errorCodes[error.response.data.error] ||
-        "Login failed. Please try again.";
-      if (error.response.data.error === "user_not_found") {
-        router.push("/auth/register");
-      } else if (error.response.data.error === "mentor_not_found") {
-        router.push("/mentor/register");
+
+      // Handle errors gracefully
+      let errorMessage = "Login failed. Please try again.";
+      if (error.response && error.response.data && error.response.data.error) {
+        errorMessage = errorCodes[error.response.data.error] || errorMessage;
+        if (error.response.data.error === "user_not_found") {
+          router.push("/auth/register");
+          return;
+        } else if (error.response.data.error === "mentor_not_found") {
+          router.push("/mentor/register");
+          return;
+        }
+      } else if (error.message) {
+        errorMessage = error.message; // Handle network errors
       }
       setError(errorMessage);
       toast.error(errorMessage);
     }
   };
 
+  // Handle Google Sign-In (if applicable)
   const handleGoogleSignIn = () => {
     const { redirectURL } = router.query || {};
-    let url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/gsignin?entityType=${entityType}`;
+    let url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/google-login`;
 
     if (redirectURL) {
       url += `&redirectURL=${encodeURIComponent(redirectURL)}`;
@@ -118,17 +133,13 @@ function Login() {
       <div className={styles.loginform}>
         <div className={styles.btnnContainer}>
           <button
-            className={`${styles.btnn} ${
-              entityType === "user" ? styles.btnnActive : ""
-            } ${styles.user}`}
+            className={`${styles.btnn} ${entityType === "user" ? styles.btnnActive : ""} ${styles.user}`}
             onClick={() => setEntityType("user")}
           >
             User Login
           </button>
           <button
-            className={`${styles.btnn} ${
-              entityType === "mentor" ? styles.btnnActive : ""
-            } ${styles.mentor}`}
+            className={`${styles.btnn} ${entityType === "mentor" ? styles.btnnActive : ""} ${styles.mentor}`}
             onClick={() => setEntityType("mentor")}
           >
             Mentor Login
@@ -140,8 +151,7 @@ function Login() {
             <div className={styles.headingg}>
               <img src="/faviconn.png" alt="Logo" />
               <h2>
-                {entityType?.charAt(0).toUpperCase() + entityType?.slice(1)}{" "}
-                Login
+                {entityType?.charAt(0).toUpperCase() + entityType?.slice(1)} Login
               </h2>
             </div>
             <div className={styles.forminput}>
@@ -196,9 +206,7 @@ function Login() {
             <div className={styles.linkdiv}>
               Don't have an account?
               <Link
-                href={
-                  entityType === "user" ? "/auth/register" : "//mentor/register"
-                }
+                href={entityType === "user" ? "/auth/register" : "/mentor/register"}
                 className={styles.registration}
                 style={{ textDecoration: "none" }}
               >
@@ -206,9 +214,7 @@ function Login() {
               </Link>
             </div>
             <div className={styles.google}>
-              <h3 style={{ color: "var(--base-500)", alignSelf: "center" }}>
-                Or
-              </h3>
+              <h3 style={{ color: "var(--base-500)", alignSelf: "center" }}>Or</h3>
             </div>
             <div className={styles.google}>
               <GoogleBtn
